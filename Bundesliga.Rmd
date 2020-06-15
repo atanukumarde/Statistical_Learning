@@ -1,0 +1,271 @@
+---
+title: "PSM Final Report"
+author: "Atanu Kumar De"
+date: "5/15/2020"
+output: html_document
+---
+
+```{r}
+# Import Bundesliga match data from csv file
+Bundesliga_Results <- read.csv("C:/Users/49177/Downloads/PSM/Bundesliga_Results.csv")
+Bundesliga_Results
+```
+
+```{r}
+#Copy data to apply columns transformations keeping the original data intact
+
+Work_data_Bundesliga_Results <- Bundesliga_Results
+Work_data_Bundesliga_Results
+```
+
+```{r}
+#Changing character columns to factor
+library(lubridate)
+
+Work_data_Bundesliga_Results$FTR <- as.factor(Work_data_Bundesliga_Results$FTR) 
+Work_data_Bundesliga_Results$HomeTeam <- as.factor(Work_data_Bundesliga_Results$HomeTeam) 
+Work_data_Bundesliga_Results$Season <- as.factor(Work_data_Bundesliga_Results$Season)
+
+Work_data_Bundesliga_Results$Date <- dmy(Work_data_Bundesliga_Results$Date)
+
+#columns with na and blanks are converted to more meaningful records
+
+Work_data_Bundesliga_Results$HTHG[is.na(Work_data_Bundesliga_Results$HTHG)] <- 0
+Work_data_Bundesliga_Results$HTAG[is.na(Work_data_Bundesliga_Results$HTAG)] <- 0
+levels(Work_data_Bundesliga_Results$HTR)[1] <- "D"
+
+
+
+#checking the classs of different columns
+lapply(Work_data_Bundesliga_Results, class)  
+Work_data_Bundesliga_Results
+```
+
+```{r}
+#Assignment 6 code chunk for RV function(Werder Bremen seasonal results)
+ library(e1071)
+ counts <- table(Work_data_Bundesliga_Results$Season[Work_data_Bundesliga_Results$HomeTeam == 'Werder Bremen' ],
+                 Work_data_Bundesliga_Results$FTR[Work_data_Bundesliga_Results$HomeTeam == 'Werder Bremen'] )
+ 
+ mosaicplot(counts,
+            main = 'Werder Bremen seasonal home match results',
+            xlab = 'Season',
+            ylab = 'H(Win)     D(Draw)     A(Lose)',
+            color = TRUE)
+ 
+ 
+ 
+ mean(Work_data_Bundesliga_Results$FTHG) 
+ sd(Work_data_Bundesliga_Results$FTHG)
+ 
+ skewness(Work_data_Bundesliga_Results$FTHG)
+ kurtosis(Work_data_Bundesliga_Results$FTHG)
+```
+
+```{r}
+#Yearly Werder Bremen reasults
+#major inference that a football teams teand to perforn better in home grounds
+
+library(sqldf)
+counts <- sqldf('select
+                Season,
+                FTR,
+                count(*) matches
+              from 
+                Work_data_Bundesliga_Results    
+              where
+                HomeTeam = \'Werder Bremen\'
+              or
+                AwayTeam = \'Werder Bremen\'
+              group by
+                Season,
+                FTR
+                ')
+library(ggplot2)
+ggplot(counts, aes(x = matches, y = FTR, colour = Season)) +
+  geom_point() +
+  facet_wrap( ~ Season)
+
+```
+
+
+```{r}
+#Average Goals scored per match in Bundesliga seasons
+
+ggplot(Work_data_Bundesliga_Results, aes(x=Season, y=FTHG+FTAG)) + stat_summary(fun="mean", geom="bar")
+
+```
+
+```{r}
+# matches being played according to the date of the month
+# major inference that a employer can get to know when to recruite more people to conduct the events
+
+counts <- group_by(Work_data_Bundesliga_Results,month(Date))
+          
+counts1 <- table(counts$`month(Date)`)
+
+barplot(counts1, main="Monthly Match Counts",
+        xlab="Number of matches",
+        ylab = "Month by number",
+        beside=TRUE)
+
+
+```
+
+```{r}
+# matches being played according to the date of the month
+# major inference that a broadcaster can set its advertizing rates according to day as mostly matches are occuring in weekends
+
+counts <- group_by(Work_data_Bundesliga_Results,weekdays(Date))
+          
+counts1 <- table(counts$`weekdays(Date)`)
+
+barplot(counts1, main="Daily Match Counts",
+        xlab="Day",
+        ylab = "Number of Matches",
+        beside=TRUE)
+
+
+```
+
+```{r}
+#Assignment 7 Code Chunk
+Ass7 <- Work_data_Bundesliga_Results[,c(5,6,8)]
+
+
+counts <- table(Ass7$FTHG)
+barplot(counts, main="Goals scored by hoam team in Bundesliga",
+        xlab="Number of goals",
+        ylab = "Number of Matches",
+        beside=TRUE)
+
+```
+
+```{r}
+counts <- table(Ass7$FTAG)
+barplot(counts, main="Goals scored by away team in Bundesliga",
+        xlab="Number of goals",
+        ylab = "Number of Matches",
+        beside=TRUE)
+
+```
+
+```{r}
+counts <- table(Ass7$HTHG)
+barplot(counts, main="Halftime Goals scored by home team in Bundesliga",
+        xlab="Number of goals",
+        ylab = "Number of Matches",
+        beside=TRUE)
+
+```
+
+```{r}
+library(GGally)
+library(tidyverse)
+
+Ass7 %>% ggpairs(columns = c("FTHG", "FTAG", "HTHG"))
+
+
+```
+
+```{r}
+#library(GGally)
+#library(tidyverse)
+
+#library(corrplot)
+
+
+newdata <- Work_data_Bundesliga_Results[,c(3,4,10,11)]
+#lapply(newdata,levels)
+#newdata <- lapply(newdata,as.integer)
+#cor(newdata)
+#corrplot(cor(newdata))
+#newdata <- group_by(newdata,HomeTeam)
+
+#counts <- table(newdata$HomeTeam,newdata$HTR)
+
+
+library(ggcorrplot)
+model.matrix(~0+., data=newdata) %>% 
+  cor(use="pairwise.complete.obs") %>% 
+  ggcorrplot(show.diag = F, type="lower", lab=TRUE, lab_size=2)
+
+
+```
+
+
+```{r}
+#Poisson Distribution Model
+poisson_model <- 
+rbind(
+  data.frame(goals=Work_data_Bundesliga_Results$FTHG,
+             team=Work_data_Bundesliga_Results$HomeTeam,
+             opponent=Work_data_Bundesliga_Results$AwayTeam,
+             home=1),
+  data.frame(goals=Work_data_Bundesliga_Results$FTAG,
+             team=Work_data_Bundesliga_Results$AwayTeam,
+             opponent=Work_data_Bundesliga_Results$HomeTeam,
+             home=0)) %>%
+glm(goals ~ home + team + opponent, family=poisson(link=log),data=.)
+summary(poisson_model)
+
+```
+
+```{r}
+#Goals prediction using the Poisson Distribution Model
+
+Bremen_scores <- predict(poisson_model, 
+        data.frame(home=1, team="Werder Bremen", 
+                   opponent="Paderborn"), type="response")
+
+Paderborn_scores <- predict(poisson_model, 
+        data.frame(home=0, team="Paderborn", 
+                   opponent="Werder Bremen"), type="response")
+
+data.frame(Bremen_scores,Paderborn_scores)
+
+
+```
+
+```{r}
+#Finding probality using the Poisson distributions scores of both teams
+
+simulate_match <- function(foot_model, homeTeam, awayTeam, max_goals=10){
+  home_goals_avg <- predict(foot_model,
+                            data.frame(home=1, team=homeTeam, 
+                                      opponent=awayTeam), type="response")
+  away_goals_avg <- predict(foot_model, 
+                           data.frame(home=0, team=awayTeam, 
+                                      opponent=homeTeam), type="response")
+  dpois(0:max_goals, home_goals_avg) %o% dpois(0:max_goals, away_goals_avg) 
+}
+
+simulate_match(poisson_model, "Werder Bremen", "Paderborn", max_goals=4)
+
+```
+
+```{r}
+#Finding match reaults of Werder Bremen vs Paderborn
+
+
+WB_PB <- simulate_match(poisson_model, "Werder Bremen", "Paderborn", max_goals=10)
+
+# Werder Bremen win
+Werder_Bremen_win <- sum(WB_PB[lower.tri(WB_PB)])
+
+# draw
+Draw <-sum(diag(WB_PB))
+
+# Paderborn win
+Paderborn_win <-sum(WB_PB[upper.tri(WB_PB)])
+
+data.frame(Werder_Bremen_win,Paderborn_win,Draw)
+
+```
+
+```{r}
+
+
+```
+
+
